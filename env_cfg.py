@@ -309,6 +309,89 @@ class ObservationsCfg:
 
 
 @configclass
+class RewardsCfg:
+    """ฟังก์ชันการให้คะแนนและลงโทษเพื่อนำทาง AI (Reward / Penalty Terms)"""
+    
+    # -- ส่วนที่ 1: รางวัลตำแหน่งฝ่ามือเข้าใกล้เป้าหมาย
+    left_distance = RewTerm(
+        func=custom_mdp.distance_to_target_tanh,
+        weight=5.0, # เพิ่มจาก 2.5 เป็น 5.0 เพื่อจูงใจให้เอื้อมมากขึ้น
+        params={
+            "std": 0.15,
+            "target_cfg": SceneEntityCfg("left_target"),
+            "ee_cfg": SceneEntityCfg("robot", body_names=["left_hand_palm_link"]),
+        },
+    )
+    
+    right_distance = RewTerm(
+        func=custom_mdp.distance_to_target_tanh,
+        weight=5.0, # เพิ่มจาก 2.5 เป็น 5.0
+        params={
+            "std": 0.15,
+            "target_cfg": SceneEntityCfg("right_target"),
+            "ee_cfg": SceneEntityCfg("robot", body_names=["right_hand_palm_link"]),
+        },
+    )
+
+    # -- คะแนนส่วนขยายความแม่นยำสูงระยะชิด (Fine reaching reward)
+    left_distance_fine = RewTerm(
+        func=custom_mdp.distance_to_target_tanh,
+        weight=5.0, # เพิ่มจาก 2.5 เป็น 5.0
+        params={
+            "std": 0.05,
+            "target_cfg": SceneEntityCfg("left_target"),
+            "ee_cfg": SceneEntityCfg("robot", body_names=["left_hand_palm_link"]),
+        },
+    )
+    
+    right_distance_fine = RewTerm(
+        func=custom_mdp.distance_to_target_tanh,
+        weight=5.0, # เพิ่มจาก 2.5 เป็น 5.0
+        params={
+            "std": 0.05,
+            "target_cfg": SceneEntityCfg("right_target"),
+            "ee_cfg": SceneEntityCfg("robot", body_names=["right_hand_palm_link"]),
+        },
+    )
+    
+    # -- ส่วนที่ 2: รางวัลแนวแกนหมุนตรงกัน (Orientation matching reward)
+    # นำทางให้ปลายข้อหันตาม XYZ frame เป้าหมาย
+    left_orientation = RewTerm(
+        func=custom_mdp.orientation_to_target_tanh,
+        weight=2.0, # เพิ่มขึ้นเล็กน้อย
+        params={
+            "std": 0.2,
+            "target_cfg": SceneEntityCfg("left_target"),
+            "ee_cfg": SceneEntityCfg("robot", body_names=["left_hand_palm_link"]),
+        },
+    )
+    
+    right_orientation = RewTerm(
+        func=custom_mdp.orientation_to_target_tanh,
+        weight=2.0, # เพิ่มขึ้นเล็กน้อย
+        params={
+            "std": 0.2,
+            "target_cfg": SceneEntityCfg("right_target"),
+            "ee_cfg": SceneEntityCfg("robot", body_names=["right_hand_palm_link"]),
+        },
+    )
+    
+    # -- ส่วนที่ 3: ลงโทษชนตัวเองหรือชนโต๊ะอย่างรุนแรง (Self-collision and table collision penalty) 
+    # โฟกัสเฉพาะส่วนแขน เอว และลำตัวที่ห้ามชนตัวเองหรือสิ่งของอื่นเด็ดขาด
+    undesired_contacts = RewTerm(
+        func=mdp.undesired_contacts,
+        weight=-1.0, # ลดการลงโทษลงชั่วคราว เพื่อให้กล้าขยับมากขึ้น
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*"), "threshold": 5.0},
+    )
+    
+    # -- ส่วนที่ 4: ลงโทษการออกคำสั่งกระชากและการขยับรุนแรง (Action rate and joint velocity penalties)
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01) # ลดจาก -0.1 เพื่อให้กล้าขยับต่อเนื่อง
+    action_l2 = RewTerm(func=mdp.action_l2, weight=0.0) # ปิดไปเลย (0.0) เพื่อให้หุ่นยอมยกแขนค้างไว้ได้
+    joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.005) # ลดจาก -0.02
+    joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-1e-05)
+
+
+@configclass
 class EventCfg:
     """กฎการสุ่มตำแหน่งวัตถุและท่าทางเริ่มต้นหุ่นยนต์ในแต่ละรอบ (Domain Randomization & Resets)"""
     
